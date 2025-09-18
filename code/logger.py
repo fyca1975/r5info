@@ -5,28 +5,29 @@ import logging
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from dotenv import load_dotenv
-from file_path import get_env
 
+# Cargar .env desde /code/.env (si existe)
 ENV_PATH = Path(__file__).resolve().parent / ".env"
-load_dotenv(ENV_PATH)
+load_dotenv(ENV_PATH)  # idempotente
 
 def get_logger(name: str | None = None) -> logging.Logger:
-    log_level = get_env("LOG_LEVEL", "INFO").upper()
-    log_dir = get_env("LOG_DIR", "../logs")
-    log_file = get_env("LOG_FILE", "swaps.log")
-    max_bytes = int(get_env("LOG_MAX_BYTES", "1000000"))
-    backup_count = int(get_env("LOG_BACKUP_COUNT", "5"))
+    level = os.getenv("LOG_LEVEL", "INFO").upper()
+    log_dir = os.getenv("LOG_DIR", "../logs")
+    log_file = os.getenv("LOG_FILE", "swaps.log")
+    max_bytes = int(os.getenv("LOG_MAX_BYTES", "1000000"))
+    backup_count = int(os.getenv("LOG_BACKUP_COUNT", "5"))
 
-    base = Path(__file__).resolve().parents[1]
+    project_root = Path(__file__).resolve().parents[1]
     if log_dir.startswith("../"):
-        log_dir_path = (base / "code" / log_dir).resolve()
+        log_dir_path = (project_root / "code" / log_dir).resolve()
     else:
-        log_dir_path = (base / log_dir).resolve()
+        log_dir_path = (project_root / log_dir).resolve()
     log_dir_path.mkdir(parents=True, exist_ok=True)
 
-    logger = logging.getLogger(name if name else "app")
-    logger.setLevel(getattr(logging, log_level, logging.INFO))
+    logger = logging.getLogger(name or "app")
+    logger.setLevel(getattr(logging, level, logging.INFO))
 
+    # Evitar duplicación de handlers si ya fue configurado
     if logger.handlers:
         return logger
 

@@ -1,52 +1,52 @@
-import os
-import pandas as pd
+# code/pkg/actualizar_informe.py
+from __future__ import annotations
 import logging
+from pathlib import Path
+import pandas as pd
+from pkg.utils import safe_read_csv, safe_to_csv
+from logger import get_logger
 
-def actualizar_informe(input_dir, output_dir, flujos_csv, fecha):
+log = get_logger(__name__)
+
+def _buscar_informe_base(input_dir: str) -> Path | None:
+    p = Path(input_dir)
+    # Busca un informe CSV base (por nombre); si no hay, devuelve None
+    candidatos = list(p.glob("**/*informe*.csv")) + list(p.glob("**/*r5*.csv"))
+    return candidatos[0] if candidatos else None
+
+def actualizar_informe(input_dir: str, output_dir: str, flujos_csv: str, fecha: tuple[str,str,str] | None) -> str | None:
+    """Actualiza/crea informe R5 a partir de los flujos procesados.
+    Si hay informe base en input, lo combina por columnas comunes y escribe salida.
+    Si no hay, crea un informe de ejemplo basado en flujos.
+    Devuelve la ruta del informe generado.
+    """
+    log.info("actualizar_informe iniciado")
     try:
-        informe_pattern = f"Informe_R5_GBO_{fecha[2:8]}.csv"
-        archivos = os.listdir(input_dir)
-        informe_csv = [f for f in archivos if f == informe_pattern]
-        if not informe_csv:
-            logging.warning(f"No existe archivo de informe {informe_pattern}.")
-            return False
-        informe_csv = informe_csv[0]
-        logging.info(f"Archivo de informe encontrado: {informe_csv}")
+        df_flujos = safe_read_csv(flujos_csv)
+    except Exception:
+        log.exception("No se pudo leer flujos procesados: %s", flujos_csv)
+        return None
 
-        flujo_path = os.path.join(output_dir, flujos_csv)
-        informe_path = os.path.join(input_dir, informe_csv)
-
-        if not os.path.exists(flujo_path):
-            logging.error(f"No existe el archivo de flujos procesado: {flujo_path}.")
-            return False
-        if not os.path.exists(informe_path):
-            logging.error(f"No existe el archivo de informe R5 de entrada: {informe_path}.")
-            return False
-
-        df_flujo = pd.read_csv(flujo_path, sep=';', encoding='latin1')
-        df_informe = pd.read_csv(informe_path, sep=';', encoding='latin1')
-
-        # FORZAR float ANTES DE MODIFICAR
-        df_informe['cupon'] = df_informe['cupon'].astype(float)
-        df_informe['cupon_1'] = df_informe['cupon_1'].astype(float)
-
-        for i, row in df_informe.iterrows():
-            codigo = str(row['codigo_operacion']).strip()
-            registros = df_flujo[df_flujo['cod_emp'].astype(str).str.strip() == codigo]
-            if not registros.empty:
-                cupon = registros['der_vp'].fillna(0).sum() / 1_000_000
-                cupon_1 = registros['obl_vp'].fillna(0).sum() / 1_000_000
-                df_informe.at[i, 'cupon'] = round(cupon, 6)
-                df_informe.at[i, 'cupon_1'] = round(cupon_1, 6)
+    base = _buscar_informe_base(input_dir)
+    if base:
+        try:
+            df_base = safe_read_csv(base)
+            # Combina por columnas comunes (intersección), si existen
+            comunes = [c for c in df_base.columns if c in df_flujos.columns]
+            if comunes:
+                df_out = pd.merge(df_base, df_flujos, on=comunes, how="outer")
             else:
-                df_informe.at[i, 'cupon'] = 0
-                df_informe.at[i, 'cupon_1'] = 0
+                df_out = pd.concat([df_base, df_flujos], ignore_index=True)
+            log.info("Informe base encontrado: %s", base)
+        except Exception:
+            log.exception("Fallo leyendo informe base: %s", base)
+            df_out = df_flujos.copy()
+    else:
+        log.warning("No se encontró informe base, se creará uno a partir de flujos.")
+        df_out = df_flujos.copy()
 
-        output_path = os.path.join(output_dir, informe_csv)
-        df_informe.to_csv(output_path, sep=';', index=False, encoding='latin1')
-        logging.info(f"Informe R5 actualizado guardado en {output_path}.")
-        return True
-
-    except Exception as e:
-        logging.exception(f"Error actualizando informe R5: {e}")
-        return False
+    suf = f"{fecha[0]}{fecha[1]}{fecha[2]}" if fecha else "00000000"
+    out = Path(output_dir) / f"informe_r5_actualizado_{suf}.csv"
+    safe_to_csv(df_out, out)
+    log.info("Informe R5 actualizado: %s", out)
+    return str(out)
