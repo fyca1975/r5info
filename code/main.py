@@ -7,7 +7,7 @@ from pkg.actualizar_informe import actualizar_informe
 from pkg.utils import cargar_env, setup_logging
 
 def main():
-    # try:
+    try:
             log = get_logger(__name__)
             rutas = load_paths()
             log.info('Inicializando proceso con rutas: %s', rutas)
@@ -38,9 +38,9 @@ def main():
 
             logging.info("----- FIN DEL PROCESO -----")
 
-if __name__ == "__main__":
-    main()
+        if __name__ == "__main__":
+            main()
 
-    # except Exception:
-    #     logging.exception('Error no controlado en main()')
-    #     raise
+    except Exception:
+        logging.exception('Error no controlado en main()')
+        raise

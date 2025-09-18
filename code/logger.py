@@ -1,9 +1,11 @@
+# code/logger.py
 from __future__ import annotations
 import os
 import logging
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from dotenv import load_dotenv
+from file_path import get_env
 
 ENV_PATH = Path(__file__).resolve().parent / ".env"
 load_dotenv(ENV_PATH)

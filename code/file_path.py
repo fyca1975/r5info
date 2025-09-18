@@ -1,6 +1,8 @@
+# code/file_path.py
 from __future__ import annotations
 from pathlib import Path
 from typing import Dict
+import re
 import os
 from dotenv import load_dotenv
 from logger import get_logger
@@ -41,3 +43,34 @@ def load_paths() -> Dict[str, str]:
     }
     log.info(f"Rutas normalizadas: {rutas}")
     return rutas
+
+
+
+def get_env(key: str, default: str | None = None):
+    """
+    Obtiene valor de variable de entorno y valida formato de ruta (Windows/Unix).
+    Si no existe o es inválido, registra el error en el log.
+    """
+    try:
+        folder_path = os.getenv(key)
+
+        if not folder_path:
+            if default is not None:
+                folder_path = default
+            else:
+                raise ValueError(f"No se encontró la variable de entorno: {key}")
+
+        # Validación general (Windows + Unix)
+        regex1 = r"^[A-Za-z0-9]:\\(?:[^<>:\"/\\|?*\n]+\\?)*[^<>:\"/\\|?*\n]*$"  # Windows
+        regex2 = r"^[A-Za-z0-9_\[\]\"`'.,\s\\\-<>@{}:+]+$"                           # Unix/otros
+
+        if not re.match(regex1, folder_path):
+            if not re.match(regex2, folder_path):
+                raise ValueError(f"El valor de la llave '{key}' no es una ruta válida.")
+
+    except ValueError as e:
+        log.error(f'Error: {e}')
+    except Exception as e:
+        log.error(f'Error obteniendo variable {key}: {e}')
+
+    return folder_path
