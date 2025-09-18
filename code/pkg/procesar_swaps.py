@@ -61,7 +61,7 @@ def procesar_swaps(input_dir: str, output_dir: str) -> tuple[str | None, tuple[s
 
         safe_to_csv(df, dst)
         log.info("Archivo procesado guardado en %s", dst)
-        return str(dst), fecha
+        return str(Path(dst).resolve()), fecha
     except Exception:
         log.exception("Fallo procesando archivo %s", src)
         return None, fecha
